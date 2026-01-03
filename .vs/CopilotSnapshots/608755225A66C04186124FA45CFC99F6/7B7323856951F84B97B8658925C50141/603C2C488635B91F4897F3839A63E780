@@ -1,0 +1,112 @@
+﻿<Window x:Class="WpfApp1.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="GData.afs VAGp Manager" Height="620" Width="980" Background="#FFF6F7FB">
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header / Folder bar -->
+        <Border Grid.Row="0" CornerRadius="12" Background="White" BorderBrush="#FFE2E8F0" BorderThickness="1" Padding="14">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel>
+                    <TextBlock Text="GData.afs" FontSize="22" FontWeight="SemiBold" Foreground="#FF0F172A" />
+                    <TextBlock Text="Selecione a pasta e gerencie os blocos VAGp por offset" Margin="0,2,0,10" Foreground="#FF475569" />
+
+                    <DockPanel LastChildFill="True">
+                        <Button x:Name="BrowseButton" Content="Escolher pasta..." MinWidth="140" Height="34" Margin="0,0,10,0" Click="BrowseButton_Click" />
+                        <TextBox x:Name="FolderTextBox" Height="34" VerticalContentAlignment="Center" />
+                    </DockPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
+                    <Button x:Name="ScanButton" Content="Scan" MinWidth="110" Height="34" Margin="0,0,10,0" Click="ScanButton_Click" />
+                    <Button x:Name="SaveButton" Content="Salvar JSON" MinWidth="120" Height="34" IsEnabled="False" Click="SaveButton_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main content -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"/>
+                <ColumnDefinition Width="12"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Files panel -->
+            <Border CornerRadius="12" Background="White" BorderBrush="#FFE2E8F0" BorderThickness="1" Padding="12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Text="Arquivos" FontSize="16" FontWeight="SemiBold" Foreground="#FF0F172A" Margin="0,0,0,10"/>
+
+                    <TextBox x:Name="FileFilterTextBox" DockPanel.Dock="Top" Height="30" Margin="0,0,0,10"
+                             VerticalContentAlignment="Center" TextChanged="FileFilterTextBox_TextChanged"
+                             ToolTip="Filtrar por nome" />
+
+                    <ListBox x:Name="FilesListBox" SelectionChanged="FilesListBox_SelectionChanged" />
+                </DockPanel>
+            </Border>
+
+            <!-- VAGp panel -->
+            <Border Grid.Column="2" CornerRadius="12" Background="White" BorderBrush="#FFE2E8F0" BorderThickness="1" Padding="12">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0">
+                        <TextBlock Text="Blocos VAGp" FontSize="16" FontWeight="SemiBold" Foreground="#FF0F172A" />
+                        <TextBlock x:Name="SelectedFileText" Margin="10,2,0,0" Foreground="#FF64748B" />
+                    </DockPanel>
+
+                    <TextBlock Grid.Row="1" x:Name="HintText" Margin="0,6,0,10" Foreground="#FF475569"
+                               Text="Selecione um arquivo à esquerda para ver os VAGp encontrados."/>
+
+                    <ListView Grid.Row="2" x:Name="VagpListView" Margin="0" >
+                        <ListView.View>
+                            <GridView>
+                                <GridViewColumn Header="#" Width="50" DisplayMemberBinding="{Binding Name}"/>
+                                <GridViewColumn Header="Offset" Width="120" DisplayMemberBinding="{Binding Offset}"/>
+                                <GridViewColumn Header="Length" Width="120" DisplayMemberBinding="{Binding Length}"/>
+                                <GridViewColumn Header="SampleRate" Width="120" DisplayMemberBinding="{Binding SampleRate}"/>
+                                <GridViewColumn Header="Ações" Width="260">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="Exportar" MinWidth="90" Margin="0,0,8,0" Tag="{Binding}" Click="ExportButton_Click"/>
+                                                <Button Content="Substituir..." MinWidth="120" Tag="{Binding}" Click="ReplaceButton_Click"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                            </GridView>
+                        </ListView.View>
+                    </ListView>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="3" CornerRadius="10" Background="White" BorderBrush="#FFE2E8F0" BorderThickness="1" Padding="10" Margin="0,12,0,0">
+            <DockPanel>
+                <TextBlock x:Name="StatusText" Foreground="#FF0F172A" />
+                <TextBlock DockPanel.Dock="Right" x:Name="CountsText" Foreground="#FF64748B" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,0 +1,286 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
+using System.Windows.Media;
+
+namespace WpfApp1
+{
+    public partial class MainWindow : Window
+    {
+        private string _lastJson;
+
+        private string _rootFolder;
+        private string _mapJsonPath;
+        private List<JsonVagpMap.VagpItem> _items;
+        private List<string> _filteredFiles;
+
+        private MediaPlayer _player;
+        private DispatcherTimer _playerTimer;
+        private bool _sliderDragging;
+        private string _tempPlayWav;
+
+        private sealed class VagpRow
+        {
+            public string File { get; set; }
+            public string Name { get; set; }
+            public long Offset { get; set; }
+            public long Length { get; set; }
+            public int SampleRate { get; set; }
+        }
+
+        public MainWindow()
+        {
+            InitializeComponent();
+
+            string defaultFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GData.afs");
+            if (Directory.Exists(defaultFolder))
+                FolderTextBox.Text = defaultFolder;
+
+            _mapJsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "gdata_vagp_map.json");
+            LoadMapJsonIfPresent();
+            UpdateUiForNoFileSelection();
+
+            _player = new MediaPlayer();
+            _player.MediaOpened += Player_MediaOpened;
+            _player.MediaEnded += Player_MediaEnded;
+
+            _playerTimer = new DispatcherTimer();
+            _playerTimer.Interval = TimeSpan.FromMilliseconds(200);
+            _playerTimer.Tick += PlayerTimer_Tick;
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            try
+            {
+                if (_playerTimer != null) _playerTimer.Stop();
+                if (_player != null) _player.Close();
+            }
+            catch { }
+
+            try { if (!string.IsNullOrEmpty(_tempPlayWav) && File.Exists(_tempPlayWav)) File.Delete(_tempPlayWav); } catch { }
+
+            base.OnClosed(e);
+        }
+
+        private void Player_MediaOpened(object sender, EventArgs e)
+        {
+            PlayerPlayButton.IsEnabled = true;
+            PlayerStopButton.IsEnabled = true;
+            PlayerSlider.IsEnabled = true;
+
+            UpdatePlayerUi();
+            _playerTimer.Start();
+        }
+
+        private void Player_MediaEnded(object sender, EventArgs e)
+        {
+            _playerTimer.Stop();
+            _player.Stop();
+            PlayerSlider.Value = 0;
+            UpdatePlayerUi();
+        }
+
+        private void PlayerTimer_Tick(object sender, EventArgs e)
+        {
+            if (_sliderDragging)
+                return;
+            UpdatePlayerUi();
+        }
+
+        private void UpdatePlayerUi()
+        {
+            TimeSpan pos = _player.Position;
+            TimeSpan dur = (_player.NaturalDuration.HasTimeSpan) ? _player.NaturalDuration.TimeSpan : TimeSpan.Zero;
+
+            double max = dur.TotalSeconds;
+            if (max <= 0) max = 1;
+
+            PlayerSlider.Maximum = max;
+            PlayerSlider.Value = Math.Max(0, Math.Min(max, pos.TotalSeconds));
+
+            PlayerTimeText.Text = FormatTime(pos) + " / " + FormatTime(dur);
+        }
+
+        private static string FormatTime(TimeSpan t)
+        {
+            if (t.TotalHours >= 1)
+                return ((int)t.TotalHours).ToString("00") + ":" + t.Minutes.ToString("00") + ":" + t.Seconds.ToString("00");
+            return t.Minutes.ToString("00") + ":" + t.Seconds.ToString("00");
+        }
+
+        private void PlayerPlayButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _player.Play();
+            }
+            catch { }
+        }
+
+        private void PlayerStopButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _player.Stop();
+                PlayerSlider.Value = 0;
+                UpdatePlayerUi();
+            }
+            catch { }
+        }
+
+        private void PlayerSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_sliderDragging)
+                return;
+
+            try
+            {
+                _player.Position = TimeSpan.FromSeconds(PlayerSlider.Value);
+                UpdatePlayerUi();
+            }
+            catch { }
+        }
+
+        private void PlaySoundButton_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            var row = btn != null ? btn.Tag as VagpRow : null;
+            if (row == null)
+                return;
+
+            if (string.IsNullOrEmpty(_rootFolder))
+            {
+                MessageBox.Show("Informe a pasta GData.afs e clique em Carregar.");
+                return;
+            }
+
+            string fullPath = Path.Combine(_rootFolder, row.File);
+            if (!File.Exists(fullPath))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + fullPath);
+                return;
+            }
+
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string mfaudioPath = Path.Combine(exeDir, "mfaudio.exe");
+            if (!File.Exists(mfaudioPath))
+            {
+                MessageBox.Show("mfaudio.exe não encontrado na pasta do programa: " + mfaudioPath);
+                return;
+            }
+
+            string tempVag = Path.Combine(Path.GetTempPath(), "vagp_" + Guid.NewGuid().ToString("N") + ".vag");
+            string tempWav = Path.Combine(Path.GetTempPath(), "vagp_" + Guid.NewGuid().ToString("N") + ".wav");
+
+            try
+            {
+                // Export block to temp .vag
+                using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    fs.Position = row.Offset;
+                    CopyExactly(fs, tempVag, row.Length);
+                }
+
+                // Convert to wav: mfaudio.exe /OTWAVU "vagTemporario.vag" "wavTemporario.wav"
+                RunMfaudioToWav(mfaudioPath, tempVag, tempWav);
+
+                if (!File.Exists(tempWav))
+                    throw new FileNotFoundException("WAV temporário não foi gerado.", tempWav);
+
+                // Replace previous temp wav
+                try { if (!string.IsNullOrEmpty(_tempPlayWav) && File.Exists(_tempPlayWav)) File.Delete(_tempPlayWav); } catch { }
+                _tempPlayWav = tempWav;
+
+                _playerTimer.Stop();
+                _player.Stop();
+                _player.Close();
+
+                // MediaPlayer requires a file path/URI
+                _player.Open(new Uri(tempWav, UriKind.Absolute));
+
+                StatusText.Text = "Pronto para tocar: " + row.Name;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString());
+                try { if (!string.IsNullOrEmpty(tempWav) && File.Exists(tempWav)) File.Delete(tempWav); } catch { }
+            }
+            finally
+            {
+                try { if (File.Exists(tempVag)) File.Delete(tempVag); } catch { }
+            }
+        }
+
+        private static void RunMfaudioToWav(string mfaudioPath, string vagPath, string wavOutPath)
+        {
+            string args = "/OTWAVU \"" + vagPath + "\" \"" + wavOutPath + "\"";
+
+            var psi = new ProcessStartInfo();
+            psi.FileName = mfaudioPath;
+            psi.Arguments = args;
+            psi.WorkingDirectory = Path.GetDirectoryName(mfaudioPath);
+            psi.CreateNoWindow = true;
+            psi.UseShellExecute = false;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+
+            using (var p = Process.Start(psi))
+            {
+                string stdout = p.StandardOutput.ReadToEnd();
+                string stderr = p.StandardError.ReadToEnd();
+                p.WaitForExit();
+
+                if (p.ExitCode != 0)
+                {
+                    throw new InvalidOperationException("mfaudio.exe falhou (ExitCode=" + p.ExitCode + ").\n\nSTDOUT:\n" + stdout + "\n\nSTDERR:\n" + stderr);
+                }
+            }
+        }
+
+        private static void CopyExactly(FileStream input, string outputPath, long length)
+        {
+            const int bufferSize = 64 * 1024;
+            byte[] buffer = new byte[bufferSize];
+
+            using (var outFs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                long remaining = length;
+                while (remaining > 0)
+                {
+                    int toRead = remaining > buffer.Length ? buffer.Length : (int)remaining;
+                    int read = input.Read(buffer, 0, toRead);
+                    if (read <= 0)
+                        throw new EndOfStreamException();
+
+                    outFs.Write(buffer, 0, read);
+                    remaining -= read;
+                }
+            }
+        }
+
+        private void ClearReadOnlyRecursively(string rootFolder)
+        {
+            foreach (string file in Directory.GetFiles(rootFolder, "*", SearchOption.AllDirectories))
+            {
+                MakeWritable(file);
+            }
+        }
+
+        private void MakeWritable(string filePath)
+        {
+            FileAttributes attrs = File.GetAttributes(filePath);
+            if ((attrs & FileAttributes.ReadOnly) != 0)
+            {
+                attrs = attrs & ~FileAttributes.ReadOnly;
+                File.SetAttributes(filePath, attrs);
+            }
+        }
+    }
+}

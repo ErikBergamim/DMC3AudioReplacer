@@ -1,0 +1,88 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Windows;
+
+namespace WpfApp1
+{
+    /// <summary>
+    /// Interação lógica para MainWindow.xam
+    /// </summary>
+    public partial class MainWindow : Window
+    {
+        private List<GDataScanner.FileScanResult> _lastResults;
+        private string _lastJson;
+
+        public MainWindow()
+        {
+            InitializeComponent();
+
+            string defaultFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GData.afs");
+            if (Directory.Exists(defaultFolder))
+                FolderTextBox.Text = defaultFolder;
+        }
+
+        private void BrowseButton_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Digite/cole o caminho completo da pasta GData.afs na caixa de texto.");
+        }
+
+        private void ScanButton_Click(object sender, RoutedEventArgs e)
+        {
+            string folder = (FolderTextBox.Text ?? string.Empty).Trim();
+            if (folder.Length == 0)
+            {
+                MessageBox.Show("Informe o caminho da pasta GData.afs.");
+                return;
+            }
+
+            if (!Directory.Exists(folder))
+            {
+                MessageBox.Show("Pasta não encontrada: " + folder);
+                return;
+            }
+
+            try
+            {
+                StatusText.Text = "Scan em andamento...";
+                OutputTextBox.Text = "";
+                SaveButton.IsEnabled = false;
+
+                _lastResults = GDataScanner.ScanDirectory(folder);
+                _lastJson = GDataScanner.ToJson(_lastResults);
+
+                OutputTextBox.Text = _lastJson;
+                StatusText.Text = "Concluído. Arquivos com VAGp: " + _lastResults.Count;
+                SaveButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "Erro.";
+                MessageBox.Show(ex.ToString());
+            }
+        }
+
+        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_lastJson == null)
+                return;
+
+            string initialDir = FolderTextBox.Text;
+            if (string.IsNullOrEmpty(initialDir) || !Directory.Exists(initialDir))
+                initialDir = Environment.CurrentDirectory;
+
+            var dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.Filter = "JSON (*.json)|*.json|All files (*.*)|*.*";
+            dlg.FileName = "gdata_vagp_map.json";
+            dlg.InitialDirectory = initialDir;
+
+            bool? ok = dlg.ShowDialog(this);
+            if (ok == true)
+            {
+                File.WriteAllText(dlg.FileName, _lastJson, Encoding.UTF8);
+                StatusText.Text = "JSON salvo em: " + dlg.FileName;
+            }
+        }
+    }
+}

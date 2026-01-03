@@ -1,0 +1,296 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace WpfApp1
+{
+    public partial class MainWindow : Window
+    {
+        private List<GDataScanner.FileScanResult> _lastResults;
+        private string _lastJson;
+
+        private string _rootFolder;
+        private List<GDataScanner.FileScanResult> _filteredResults;
+
+        private sealed class VagpRow
+        {
+            public string File { get; set; }
+            public string Name { get; set; }
+            public long Offset { get; set; }
+            public long Length { get; set; }
+            public int? SampleRate { get; set; }
+        }
+
+        public MainWindow()
+        {
+            InitializeComponent();
+
+            string defaultFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GData.afs");
+            if (Directory.Exists(defaultFolder))
+                FolderTextBox.Text = defaultFolder;
+
+            UpdateUiForNoScan();
+        }
+
+        private void UpdateUiForNoScan()
+        {
+            FilesListBox.ItemsSource = null;
+            VagpListView.ItemsSource = null;
+            SelectedFileText.Text = "";
+            HintText.Text = "Selecione uma pasta e clique em Scan.";
+            StatusText.Text = "";
+            CountsText.Text = "";
+            SaveButton.IsEnabled = false;
+        }
+
+        private void BrowseButton_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Digite/cole o caminho completo da pasta GData.afs na caixa de texto.");
+        }
+
+        private void ScanButton_Click(object sender, RoutedEventArgs e)
+        {
+            string folder = (FolderTextBox.Text ?? string.Empty).Trim();
+            if (folder.Length == 0)
+            {
+                MessageBox.Show("Informe o caminho da pasta GData.afs.");
+                return;
+            }
+
+            if (!Directory.Exists(folder))
+            {
+                MessageBox.Show("Pasta não encontrada: " + folder);
+                return;
+            }
+
+            try
+            {
+                _rootFolder = folder;
+                StatusText.Text = "Scan em andamento...";
+                CountsText.Text = "";
+                SaveButton.IsEnabled = false;
+
+                _lastResults = GDataScanner.ScanDirectory(folder);
+                _lastJson = GDataScanner.ToJson(_lastResults);
+                _filteredResults = new List<GDataScanner.FileScanResult>(_lastResults);
+
+                FilesListBox.ItemsSource = _filteredResults.Select(r => r.File).OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+                VagpListView.ItemsSource = null;
+                SelectedFileText.Text = "";
+                HintText.Text = "Selecione um arquivo à esquerda para ver os VAGp encontrados.";
+
+                int totalVagp = _lastResults.Sum(r => r.Entries != null ? r.Entries.Count : 0);
+                StatusText.Text = "Concluído.";
+                CountsText.Text = "Arquivos: " + _lastResults.Count + " | VAGp: " + totalVagp;
+
+                SaveButton.IsEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "Erro.";
+                MessageBox.Show(ex.ToString());
+            }
+        }
+
+        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_lastJson == null)
+                return;
+
+            string initialDir = FolderTextBox.Text;
+            if (string.IsNullOrEmpty(initialDir) || !Directory.Exists(initialDir))
+                initialDir = Environment.CurrentDirectory;
+
+            var dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.Filter = "JSON (*.json)|*.json|All files (*.*)|*.*";
+            dlg.FileName = "gdata_vagp_map.json";
+            dlg.InitialDirectory = initialDir;
+
+            bool? ok = dlg.ShowDialog(this);
+            if (ok == true)
+            {
+                File.WriteAllText(dlg.FileName, _lastJson, Encoding.UTF8);
+                StatusText.Text = "JSON salvo em: " + dlg.FileName;
+            }
+        }
+
+        private void FileFilterTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_lastResults == null)
+                return;
+
+            string filter = (FileFilterTextBox.Text ?? string.Empty).Trim();
+            if (filter.Length == 0)
+            {
+                _filteredResults = new List<GDataScanner.FileScanResult>(_lastResults);
+            }
+            else
+            {
+                _filteredResults = _lastResults
+                    .Where(r => r.File != null && r.File.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+                    .ToList();
+            }
+
+            string selected = FilesListBox.SelectedItem as string;
+            FilesListBox.ItemsSource = _filteredResults.Select(r => r.File).OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+
+            if (selected != null && _filteredResults.Any(r => string.Equals(r.File, selected, StringComparison.OrdinalIgnoreCase)))
+                FilesListBox.SelectedItem = selected;
+            else
+                VagpListView.ItemsSource = null;
+
+            CountsText.Text = "Arquivos: " + _filteredResults.Count;
+        }
+
+        private void FilesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            string file = FilesListBox.SelectedItem as string;
+            if (string.IsNullOrEmpty(file) || _filteredResults == null)
+            {
+                VagpListView.ItemsSource = null;
+                SelectedFileText.Text = "";
+                return;
+            }
+
+            var result = _filteredResults.FirstOrDefault(r => string.Equals(r.File, file, StringComparison.OrdinalIgnoreCase));
+            if (result == null)
+                return;
+
+            SelectedFileText.Text = "(" + result.File + ")";
+
+            var rows = new List<VagpRow>();
+            if (result.Entries != null)
+            {
+                foreach (var e2 in result.Entries)
+                {
+                    rows.Add(new VagpRow
+                    {
+                        File = result.File,
+                        Name = "VAGp" + e2.Index,
+                        Offset = e2.Offset,
+                        Length = e2.Length,
+                        SampleRate = e2.SampleRate
+                    });
+                }
+            }
+
+            VagpListView.ItemsSource = rows;
+            HintText.Text = rows.Count > 0 ? ("VAGp encontrados: " + rows.Count) : "Nenhum VAGp encontrado nesse arquivo.";
+        }
+
+        private void ExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            var row = btn != null ? btn.Tag as VagpRow : null;
+            if (row == null)
+                return;
+
+            if (string.IsNullOrEmpty(_rootFolder))
+                return;
+
+            string fullPath = Path.Combine(_rootFolder, row.File);
+            if (!File.Exists(fullPath))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + fullPath);
+                return;
+            }
+
+            var dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.Filter = "VAGp (*.vag)|*.vag|All files (*.*)|*.*";
+            dlg.FileName = row.Name + "_" + row.SampleRate + ".vag";
+            dlg.InitialDirectory = _rootFolder;
+
+            bool? ok = dlg.ShowDialog(this);
+            if (ok != true)
+                return;
+
+            try
+            {
+                using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                {
+                    fs.Position = row.Offset;
+                    CopyExactly(fs, dlg.FileName, row.Length);
+                }
+
+                StatusText.Text = "Exportado: " + row.Name;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString());
+            }
+        }
+
+        private void ReplaceButton_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            var row = btn != null ? btn.Tag as VagpRow : null;
+            if (row == null)
+                return;
+
+            if (string.IsNullOrEmpty(_rootFolder))
+                return;
+
+            string targetPath = Path.Combine(_rootFolder, row.File);
+            if (!File.Exists(targetPath))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + targetPath);
+                return;
+            }
+
+            var dlg = new Microsoft.Win32.OpenFileDialog();
+            dlg.Filter = "VAGp (*.vag;*.bin)|*.vag;*.bin|All files (*.*)|*.*";
+
+            bool? ok = dlg.ShowDialog(this);
+            if (ok != true)
+                return;
+
+            string replacementPath = dlg.FileName;
+            try
+            {
+                byte[] replacement = File.ReadAllBytes(replacementPath);
+                if (replacement.Length != row.Length)
+                {
+                    MessageBox.Show("Tamanho incompatível.\n\nDestino: " + row.Length + " bytes\nSubstituto: " + replacement.Length + " bytes\n\nA substituição é in-place, então o tamanho precisa ser igual.");
+                    return;
+                }
+
+                using (var fs = new FileStream(targetPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+                {
+                    fs.Position = row.Offset;
+                    fs.Write(replacement, 0, replacement.Length);
+                }
+
+                StatusText.Text = "Substituído: " + row.Name + " em " + row.File;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString());
+            }
+        }
+
+        private static void CopyExactly(FileStream input, string outputPath, long length)
+        {
+            const int bufferSize = 64 * 1024;
+            byte[] buffer = new byte[bufferSize];
+
+            using (var outFs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                long remaining = length;
+                while (remaining > 0)
+                {
+                    int toRead = remaining > buffer.Length ? buffer.Length : (int)remaining;
+                    int read = input.Read(buffer, 0, toRead);
+                    if (read <= 0)
+                        throw new EndOfStreamException();
+
+                    outFs.Write(buffer, 0, read);
+                    remaining -= read;
+                }
+            }
+        }
+    }
+}

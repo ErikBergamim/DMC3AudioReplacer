@@ -1,0 +1,332 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+
+namespace WpfApp1
+{
+    internal static class GDataScanner
+    {
+        private static readonly byte[] VagpHeader = new byte[] { 0x56, 0x41, 0x47, 0x70, 0x00, 0x00 }; // "VAGp\0\0"
+        private static readonly byte[] VagiHeader = new byte[] { 0x56, 0x61, 0x67, 0x69 }; // "Vagi"
+
+        internal sealed class VagpEntry
+        {
+            public int Index { get; set; }
+            public long Offset { get; set; }
+            public long Length { get; set; }
+            public int? SampleRate { get; set; }
+        }
+
+        internal sealed class FileScanResult
+        {
+            public string File { get; set; }
+            public List<VagpEntry> Entries { get; set; }
+        }
+
+        internal static List<FileScanResult> ScanDirectory(string directoryPath)
+        {
+            if (directoryPath == null) throw new ArgumentNullException("directoryPath");
+            if (!Directory.Exists(directoryPath)) throw new DirectoryNotFoundException(directoryPath);
+
+            var results = new List<FileScanResult>();
+            foreach (string filePath in Directory.GetFiles(directoryPath, "*", SearchOption.AllDirectories))
+            {
+                var entries = ScanFile(filePath);
+                if (entries.Count > 0)
+                {
+                    results.Add(new FileScanResult
+                    {
+                        File = MakeRelativePath(directoryPath, filePath),
+                        Entries = entries
+                    });
+                }
+            }
+
+            return results;
+        }
+
+        internal static List<VagpEntry> ScanFile(string filePath)
+        {
+            var offsets = new List<long>();
+
+            using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                if (fs.Length < VagpHeader.Length)
+                    return new List<VagpEntry>();
+
+                // 1) Find all VAGp offsets.
+                const int bufferSize = 64 * 1024;
+                byte[] buffer = new byte[bufferSize + (VagpHeader.Length - 1)];
+                long globalOffset = 0;
+
+                int carried = 0;
+                while (true)
+                {
+                    int read = fs.Read(buffer, carried, bufferSize);
+                    if (read <= 0)
+                        break;
+
+                    int total = carried + read;
+                    int limit = total - VagpHeader.Length;
+
+                    for (int i = 0; i <= limit; i++)
+                    {
+                        if (MatchAt(buffer, i, VagpHeader))
+                            offsets.Add(globalOffset + i);
+                    }
+
+                    carried = VagpHeader.Length - 1;
+                    if (total < carried)
+                        carried = total;
+
+                    Buffer.BlockCopy(buffer, total - carried, buffer, 0, carried);
+                    globalOffset += (total - carried);
+                }
+
+                // 2) Find Vagi table and read sample rates in order.
+                List<int> rates = TryReadVagiSampleRates(fs);
+
+                // 3) Compute lengths + assign rates by index.
+                var entries = new List<VagpEntry>();
+                for (int i = 0; i < offsets.Count; i++)
+                {
+                    long start = offsets[i];
+                    long endExclusive = (i + 1 < offsets.Count) ? offsets[i + 1] : fs.Length;
+                    long len = endExclusive - start;
+
+                    int? sr = null;
+                    if (rates != null && i < rates.Count)
+                        sr = rates[i];
+
+                    entries.Add(new VagpEntry
+                    {
+                        Index = i + 1,
+                        Offset = start,
+                        Length = len,
+                        SampleRate = sr
+                    });
+                }
+
+                return entries;
+            }
+        }
+
+        private static List<int> TryReadVagiSampleRates(FileStream fs)
+        {
+            long vagiOffset = FindFirstSignature(fs, VagiHeader);
+            if (vagiOffset < 0)
+                return null;
+
+            // According to format described:
+            // - Header starts with "Vagi" (56 61 67 69)
+            // - First sample rate is at (vagiOffset + 24 bytes) => +0x1C
+            // - Next sample rates repeat each 16 bytes: 2 bytes rate + 14 bytes padding
+            const int firstRateOffset = 0x1C;
+            const int rateStride = 0x10;
+
+            var rates = new List<int>();
+
+            long old = fs.Position;
+            try
+            {
+                long pos = vagiOffset + firstRateOffset;
+                while (pos + 2 <= fs.Length)
+                {
+                    int? sr = TryReadU16LittleEndian(fs, pos);
+                    if (!sr.HasValue)
+                        break;
+
+                    // If we hit 0 for long stretches it's suspicious, but allow 0 as a valid value.
+                    rates.Add(sr.Value);
+                    pos += rateStride;
+                }
+
+                return rates;
+            }
+            finally
+            {
+                fs.Position = old;
+            }
+        }
+
+        private static long FindFirstSignature(FileStream fs, byte[] signature)
+        {
+            if (signature == null || signature.Length == 0)
+                return -1;
+
+            const int bufferSize = 64 * 1024;
+            byte[] buffer = new byte[bufferSize + (signature.Length - 1)];
+
+            long globalOffset = 0;
+            int carried = 0;
+
+            long old = fs.Position;
+            try
+            {
+                fs.Position = 0;
+                while (true)
+                {
+                    int read = fs.Read(buffer, carried, bufferSize);
+                    if (read <= 0)
+                        return -1;
+
+                    int total = carried + read;
+                    int limit = total - signature.Length;
+
+                    for (int i = 0; i <= limit; i++)
+                    {
+                        if (MatchAt(buffer, i, signature))
+                            return globalOffset + i;
+                    }
+
+                    carried = signature.Length - 1;
+                    if (total < carried)
+                        carried = total;
+
+                    Buffer.BlockCopy(buffer, total - carried, buffer, 0, carried);
+                    globalOffset += (total - carried);
+                }
+            }
+            finally
+            {
+                fs.Position = old;
+            }
+        }
+
+        private static int? TryReadU16LittleEndian(FileStream fs, long pos)
+        {
+            if (pos < 0 || pos + 2 > fs.Length)
+                return null;
+
+            long old = fs.Position;
+            try
+            {
+                fs.Position = pos;
+                int lo = fs.ReadByte();
+                int hi = fs.ReadByte();
+                if (lo < 0 || hi < 0)
+                    return null;
+                return (hi << 8) | lo;
+            }
+            finally
+            {
+                fs.Position = old;
+            }
+        }
+
+        private static bool MatchAt(byte[] buffer, int index, byte[] signature)
+        {
+            for (int j = 0; j < signature.Length; j++)
+            {
+                if (buffer[index + j] != signature[j])
+                    return false;
+            }
+            return true;
+        }
+
+        private static bool BytesEqual(byte[] a, byte[] b)
+        {
+            if (a == null || b == null) return false;
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+                if (a[i] != b[i]) return false;
+            return true;
+        }
+
+        internal static string ToJson(List<FileScanResult> results)
+        {
+            var sb = new StringBuilder();
+            sb.Append("{\n");
+            sb.Append("  \"folder\": \"GData.afs\",\n");
+            sb.Append("  \"files\": [\n");
+
+            for (int i = 0; i < results.Count; i++)
+            {
+                var r = results[i];
+                sb.Append("    {\n");
+                sb.Append("      \"file\": ");
+                sb.Append(JsonString(r.File));
+                sb.Append(",\n");
+                sb.Append("      \"vagp\": [\n");
+
+                for (int j = 0; j < r.Entries.Count; j++)
+                {
+                    VagpEntry e = r.Entries[j];
+                    sb.Append("        {");
+                    sb.Append("\"name\": \"VAGp");
+                    sb.Append(e.Index);
+                    sb.Append("\",");
+                    sb.Append(" \"offset\": ");
+                    sb.Append(e.Offset);
+                    sb.Append(", \"length\": ");
+                    sb.Append(e.Length);
+                    sb.Append(", \"sampleRate\": ");
+                    if (e.SampleRate.HasValue) sb.Append(e.SampleRate.Value); else sb.Append("null");
+                    sb.Append("}");
+                    if (j + 1 < r.Entries.Count) sb.Append(",");
+                    sb.Append("\n");
+                }
+
+                sb.Append("      ]\n");
+                sb.Append("    }");
+                if (i + 1 < results.Count) sb.Append(",");
+                sb.Append("\n");
+            }
+
+            sb.Append("  ]\n");
+            sb.Append("}\n");
+            return sb.ToString();
+        }
+
+        private static string JsonString(string value)
+        {
+            if (value == null) return "\"\"";
+
+            var sb = new StringBuilder();
+            sb.Append('"');
+            for (int i = 0; i < value.Length; i++)
+            {
+                char c = value[i];
+                switch (c)
+                {
+                    case '"': sb.Append("\\\""); break;
+                    case '\\': sb.Append("\\\\"); break;
+                    case '\b': sb.Append("\\b"); break;
+                    case '\f': sb.Append("\\f"); break;
+                    case '\n': sb.Append("\\n"); break;
+                    case '\r': sb.Append("\\r"); break;
+                    case '\t': sb.Append("\\t"); break;
+                    default:
+                        if (c < 32)
+                        {
+                            sb.Append("\\u");
+                            sb.Append(((int)c).ToString("x4"));
+                        }
+                        else
+                        {
+                            sb.Append(c);
+                        }
+                        break;
+                }
+            }
+            sb.Append('"');
+            return sb.ToString();
+        }
+
+        private static string MakeRelativePath(string baseDir, string fullPath)
+        {
+            if (string.IsNullOrEmpty(baseDir)) return fullPath;
+            if (string.IsNullOrEmpty(fullPath)) return fullPath;
+
+            if (!baseDir.EndsWith(Path.DirectorySeparatorChar.ToString()))
+                baseDir += Path.DirectorySeparatorChar;
+
+            Uri baseUri = new Uri(baseDir);
+            Uri fullUri = new Uri(fullPath);
+            Uri rel = baseUri.MakeRelativeUri(fullUri);
+
+            return Uri.UnescapeDataString(rel.ToString()).Replace('/', Path.DirectorySeparatorChar);
+        }
+    }
+}
