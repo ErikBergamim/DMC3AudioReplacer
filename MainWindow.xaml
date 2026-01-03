@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="GData.afs VAGp Manager" Height="680" Width="1040" Background="#FFF6F7FB">
+        Title="Devil May Cry 3 HD Collection Sound Manager" Height="680" Width="1040" Background="#FFF6F7FB">
 
     <Window.Resources>
         <!-- Theme brushes -->
@@ -198,20 +198,20 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel>
-                    <TextBlock Text="GData.afs" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource BrushText}" />
-                    <TextBlock Text="Selecione a pasta e gerencie os blocos VAGp por offset" Margin="0,2,0,10" Foreground="{StaticResource BrushSubText}" />
+                    <TextBlock Text="Devil May Cry 3 HD Sound Manager" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource BrushText}" />
+                    <TextBlock Text="Select folder and manage VAGp blocks by offset" Margin="0,2,0,10" Foreground="{StaticResource BrushSubText}" />
 
                     <DockPanel LastChildFill="True">
-                        <Button x:Name="BrowseButton" Content="Escolher pasta..." MinWidth="140" Height="34" Margin="0,0,10,0" Click="BrowseButton_Click" Style="{StaticResource GhostButton}" />
+                        <Button x:Name="BrowseButton" Content="Browse folder..." MinWidth="140" Height="34" Margin="0,0,10,0" Click="BrowseButton_Click" Style="{StaticResource GhostButton}" />
                         <TextBox x:Name="FolderTextBox" Height="34" />
                     </DockPanel>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Bottom">
-                    <Button x:Name="ScanButton" Content="Carregar" MinWidth="110" Height="34" Margin="0,0,10,0" Click="ScanButton_Click" />
-                    <Button x:Name="BulkExportButton" Content="Exportar vários" MinWidth="140" Height="34" Margin="0,0,10,0" Click="BulkExportButton_Click" Style="{StaticResource GhostButton}" />
-                    <Button x:Name="BulkReplaceButton" Content="Substituir vários" MinWidth="150" Height="34" Margin="0,0,10,0" Click="BulkReplaceButton_Click" Style="{StaticResource GhostButton}" />
-                    <Button x:Name="SaveButton" Content="Salvar JSON" MinWidth="120" Height="34" IsEnabled="False" Click="SaveButton_Click" Style="{StaticResource GhostButton}" />
+                    <Button x:Name="ScanButton" Content="Load" MinWidth="110" Height="34" Margin="0,0,10,0" Click="ScanButton_Click" />
+                    <Button x:Name="BulkExportButton" Content="Bulk Export" MinWidth="140" Height="34" Margin="0,0,10,0" Click="BulkExportButton_Click" Style="{StaticResource GhostButton}" />
+                    <Button x:Name="BulkReplaceButton" Content="Bulk Replace" MinWidth="150" Height="34" Margin="0,0,10,0" Click="BulkReplaceButton_Click" Style="{StaticResource GhostButton}" />
+                    <Button x:Name="SaveButton" Content="Save JSON" MinWidth="120" Height="34" IsEnabled="False" Click="SaveButton_Click" Style="{StaticResource GhostButton}" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -227,11 +227,11 @@
             <!-- Files panel -->
             <Border CornerRadius="12" Background="{StaticResource BrushSurface}" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" Padding="12">
                 <DockPanel>
-                    <TextBlock DockPanel.Dock="Top" Text="Arquivos" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
+                    <TextBlock DockPanel.Dock="Top" Text="Files" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,10"/>
 
                     <TextBox x:Name="FileFilterTextBox" DockPanel.Dock="Top" Height="30" Margin="0,0,0,10"
                              TextChanged="FileFilterTextBox_TextChanged"
-                             ToolTip="Filtrar por nome" />
+                             ToolTip="Filter by name" />
 
                     <ListBox x:Name="FilesListBox" SelectionChanged="FilesListBox_SelectionChanged" />
                 </DockPanel>
@@ -248,12 +248,12 @@
                     </Grid.RowDefinitions>
 
                     <DockPanel Grid.Row="0">
-                        <TextBlock Text="Blocos VAGp" FontSize="16" FontWeight="SemiBold" />
+                        <TextBlock Text="VAGp Blocks" FontSize="16" FontWeight="SemiBold" />
                         <TextBlock x:Name="SelectedFileText" Margin="10,2,0,0" Foreground="{StaticResource BrushMuted}" />
                     </DockPanel>
 
                     <TextBlock Grid.Row="1" x:Name="HintText" Margin="0,6,0,10" Foreground="{StaticResource BrushSubText}"
-                               Text="Selecione um arquivo à esquerda para ver os VAGp encontrados."/>
+                               Text="Select a file on the left to see the VAGp found."/>
 
                     <ListView Grid.Row="2" x:Name="VagpListView" Margin="0">
                         <ListView.View>
@@ -262,13 +262,13 @@
                                 <GridViewColumn Header="Offset" Width="120" DisplayMemberBinding="{Binding Offset}"/>
                                 <GridViewColumn Header="Length" Width="120" DisplayMemberBinding="{Binding Length}"/>
                                 <GridViewColumn Header="SampleRate" Width="120" DisplayMemberBinding="{Binding SampleRate}"/>
-                                <GridViewColumn Header="Ações" Width="340">
+                                <GridViewColumn Header="Actions" Width="340">
                                     <GridViewColumn.CellTemplate>
                                         <DataTemplate>
                                             <StackPanel Orientation="Horizontal">
-                                                <Button Content="Tocar som" Margin="0,0,8,0" Tag="{Binding}" Click="PlaySoundButton_Click" Style="{StaticResource TableActionButton}"/>
-                                                <Button Content="Exportar" Margin="0,0,8,0" Tag="{Binding}" Click="ExportButton_Click" Style="{StaticResource TableActionButton}"/>
-                                                <Button Content="Substituir..." Tag="{Binding}" Click="ReplaceButton_Click" Style="{StaticResource TableActionButton}"/>
+                                                <Button Content="Play Sound" Margin="0,0,8,0" Tag="{Binding}" Click="PlaySoundButton_Click" Style="{StaticResource TableActionButton}"/>
+                                                <Button Content="Export" Margin="0,0,8,0" Tag="{Binding}" Click="ExportButton_Click" Style="{StaticResource TableActionButton}"/>
+                                                <Button Content="Replace..." Tag="{Binding}" Click="ReplaceButton_Click" Style="{StaticResource TableActionButton}"/>
                                             </StackPanel>
                                         </DataTemplate>
                                     </GridViewColumn.CellTemplate>

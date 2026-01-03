@@ -11,3 +11,4 @@ C:\Users\Erik\source\repos\WpfApp1\obj\Debug\WpfApp1.csproj.GenerateResource.cac
 C:\Users\Erik\source\repos\WpfApp1\obj\Debug\WpfApp1.csproj.CoreCompileInputs.cache
 C:\Users\Erik\source\repos\WpfApp1\obj\Debug\WpfApp1.exe
 C:\Users\Erik\source\repos\WpfApp1\obj\Debug\WpfApp1.pdb
+C:\Users\Erik\source\repos\WpfApp1\obj\Debug\WpfApp1_Content.g.cs

@@ -1,0 +1,14 @@
+C:\Users\Erik\source\repos\WpfApp1\bin\Release\WpfApp1.exe
+C:\Users\Erik\source\repos\WpfApp1\bin\Release\WpfApp1.pdb
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1.csproj.AssemblyReference.cache
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\MainWindow.baml
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\MainWindow.g.cs
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\App.g.cs
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1_Content.g.cs
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1_MarkupCompile.cache
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1.g.resources
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1.Properties.Resources.resources
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1.csproj.GenerateResource.cache
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1.csproj.CoreCompileInputs.cache
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1.exe
+C:\Users\Erik\source\repos\WpfApp1\obj\Release\WpfApp1.pdb

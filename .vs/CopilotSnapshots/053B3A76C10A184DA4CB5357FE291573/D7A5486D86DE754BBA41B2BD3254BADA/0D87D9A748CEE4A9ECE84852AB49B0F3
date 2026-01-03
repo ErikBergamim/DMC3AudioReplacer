@@ -1,0 +1,92 @@
+﻿#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Traduz apenas os textos de UI (MessageBox, StatusText, etc.) de português para inglês
+Mantém todo o código, nomes de métodos, variáveis e comentários inalterados
+"""
+
+import re
+
+# Dicionário de traduções
+translations = {
+    # MainWindow.xaml.cs - MessageBox
+    "Informe o caminho da pasta GData.afs.": "Please enter the GData.afs folder path.",
+    "Pasta não encontrada: ": "Folder not found: ",
+    "Erro ao carregar JSON.": "Error loading JSON.",
+    "Mapa carregado.": "Map loaded.",
+    "Arquivos: ": "Files: ",
+    "Selecione um arquivo à esquerda para ver os VAGp do JSON.": "Select a file on the left to see the VAGp from the JSON.",
+    "JSON salvo em: ": "JSON saved to: ",
+    "VAGp no arquivo: ": "VAGp in file: ",
+    "Nenhum VAGp para esse arquivo.": "No VAGp for this file.",
+    "Informe a pasta GData.afs e clique em Carregar.": "Please enter the GData.afs folder and click Load.",
+    "Arquivo não encontrado: ": "File not found: ",
+    "Exportado: ": "Exported: ",
+    "Selecione um arquivo na lista à esquerda.": "Please select a file from the list on the left.",
+    "mfaudio.exe não encontrado na pasta do programa: ": "mfaudio.exe not found in program folder: ",
+    "Selecione a pasta para exportar os WAVs": "Select folder to export WAV files",
+    "Exportados: ": "Exported: ",
+    " WAV(s)": " WAV file(s)",
+    "Selecione a pasta contendo WAVs (VAGp1.wav, VAGp2.wav, ...) ": "Select folder containing WAVs (VAGp1.wav, VAGp2.wav, ...)",
+    "Substituídos: ": "Replaced: ",
+    "Selecionar pasta": "Select folder",
+    "SampleRate não encontrado no JSON para este VAGp.": "SampleRate not found in JSON for this VAGp.",
+    "Substituído (truncado): ": "Replaced (truncated): ",
+    "Selecione a pasta GData.afs": "Select GData.afs folder",
+    "WAV temporário não foi gerado.": "Temporary WAV was not generated.",
+    "Pronto para tocar: ": "Ready to play: ",
+    "Mapa JSON não encontrado: ": "JSON map not found: ",
+    "Mapa carregado: ": "Map loaded: ",
+    "Informe a pasta GData.afs e clique em Carregar.": "Enter the GData.afs folder and click Load.",
+    
+    # MainWindow.xaml - UI Elements
+    "Selecione a pasta e gerencie os blocos VAGp por offset": "Select folder and manage VAGp blocks by offset",
+    "Escolher pasta...": "Browse folder...",
+    "Carregar": "Load",
+    "Exportar vários": "Bulk Export",
+    "Substituir vários": "Bulk Replace",
+    "Salvar JSON": "Save JSON",
+    "Arquivos": "Files",
+    "Filtrar por nome": "Filter by name",
+    "Blocos VAGp": "VAGp Blocks",
+    "Selecione um arquivo à esquerda para ver os VAGp encontrados.": "Select a file on the left to see the VAGp found.",
+    "Ações": "Actions",
+    "Tocar som": "Play Sound",
+    "Aumentar qualidade": "Enhance Quality",
+    "Exportar": "Export",
+    "Substituir...": "Replace...",
+    
+    # JsonVagpMap.cs - Error messages
+    "JSON inválido. Esperado: '": "Invalid JSON. Expected: '",
+    "' em ": "' at ",
+    "JSON inválido": "Invalid JSON",
+    "Escape inválido: \\\\": "Invalid escape: \\\\",
+    "Número inválido": "Invalid number",
+}
+
+def translate_file(input_path, output_path):
+    """Traduz as strings de UI em um arquivo"""
+    with open(input_path, 'r', encoding='utf-8') as f:
+        content = f.read()
+    
+    # Aplica todas as traduções
+    for pt, en in translations.items():
+        content = content.replace(pt, en)
+    
+    with open(output_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    print(f"Traduzido: {input_path} -> {output_path}")
+
+if __name__ == "__main__":
+    # Traduz os arquivos
+    translate_file("MainWindow.xaml.cs", "MainWindow.xaml.cs.translated")
+    translate_file("MainWindow.xaml", "MainWindow.xaml.translated")
+    translate_file("JsonVagpMap.cs", "JsonVagpMap.cs.translated")
+    
+    print("\nTradução concluída!")
+    print("Arquivos gerados:")
+    print("  - MainWindow.xaml.cs.translated")
+    print("  - MainWindow.xaml.translated")
+    print("  - JsonVagpMap.cs.translated")
+    print("\nRevise os arquivos e substitua os originais se estiver satisfeito.")

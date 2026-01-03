@@ -1,0 +1,1044 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
+using System.Windows.Media;
+
+namespace WpfApp1
+{
+    public partial class MainWindow : Window
+    {
+        private string _lastJson;
+
+        private string _rootFolder;
+        private string _mapJsonPath;
+        private List<JsonVagpMap.VagpItem> _items;
+        private List<string> _filteredFiles;
+
+        private MediaPlayer _player;
+        private DispatcherTimer _playerTimer;
+        private bool _sliderDragging;
+        private string _tempPlayWav;
+
+        private sealed class VagpRow
+        {
+            public string File { get; set; }
+            public string Name { get; set; }
+            public long Offset { get; set; }
+            public long Length { get; set; }
+            public int? SampleRate { get; set; }
+        }
+
+        public MainWindow()
+        {
+            InitializeComponent();
+
+            string defaultFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GData.afs");
+            if (Directory.Exists(defaultFolder))
+                FolderTextBox.Text = defaultFolder;
+
+            _mapJsonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "gdata_vagp_map.json");
+            LoadMapJsonIfPresent();
+            UpdateUiForNoFileSelection();
+
+            _player = new MediaPlayer();
+            _player.MediaOpened += Player_MediaOpened;
+            _player.MediaEnded += Player_MediaEnded;
+
+            _playerTimer = new DispatcherTimer();
+            _playerTimer.Interval = TimeSpan.FromMilliseconds(200);
+            _playerTimer.Tick += PlayerTimer_Tick;
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            try
+            {
+                if (_playerTimer != null) _playerTimer.Stop();
+                if (_player != null) _player.Close();
+            }
+            catch { }
+
+            try { if (!string.IsNullOrEmpty(_tempPlayWav) && File.Exists(_tempPlayWav)) File.Delete(_tempPlayWav); } catch { }
+
+            base.OnClosed(e);
+        }
+
+        private void Player_MediaOpened(object sender, EventArgs e)
+        {
+            PlayerPlayButton.IsEnabled = true;
+            PlayerStopButton.IsEnabled = true;
+            PlayerSlider.IsEnabled = true;
+
+            UpdatePlayerUi();
+            _playerTimer.Start();
+        }
+
+        private void Player_MediaEnded(object sender, EventArgs e)
+        {
+            _playerTimer.Stop();
+            _player.Stop();
+            PlayerSlider.Value = 0;
+            UpdatePlayerUi();
+        }
+
+        private void PlayerTimer_Tick(object sender, EventArgs e)
+        {
+            if (_sliderDragging)
+                return;
+            UpdatePlayerUi();
+        }
+
+        private void UpdatePlayerUi()
+        {
+            TimeSpan pos = _player.Position;
+            TimeSpan dur = (_player.NaturalDuration.HasTimeSpan) ? _player.NaturalDuration.TimeSpan : TimeSpan.Zero;
+
+            double max = dur.TotalSeconds;
+            if (max <= 0) max = 1;
+
+            PlayerSlider.Maximum = max;
+            PlayerSlider.Value = Math.Max(0, Math.Min(max, pos.TotalSeconds));
+
+            PlayerTimeText.Text = FormatTime(pos) + " / " + FormatTime(dur);
+        }
+
+        private static string FormatTime(TimeSpan t)
+        {
+            if (t.TotalHours >= 1)
+                return ((int)t.TotalHours).ToString("00") + ":" + t.Minutes.ToString("00") + ":" + t.Seconds.ToString("00");
+            return t.Minutes.ToString("00") + ":" + t.Seconds.ToString("00");
+        }
+
+        private void PlayerPlayButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _player.Play();
+            }
+            catch { }
+        }
+
+        private void PlayerStopButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                _player.Stop();
+                PlayerSlider.Value = 0;
+                UpdatePlayerUi();
+            }
+            catch { }
+        }
+
+        private void PlayerSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (!_sliderDragging)
+                return;
+
+            try
+            {
+                _player.Position = TimeSpan.FromSeconds(PlayerSlider.Value);
+                UpdatePlayerUi();
+            }
+            catch { }
+        }
+
+        private void ScanButton_Click(object sender, RoutedEventArgs e)
+        {
+            string folder = (FolderTextBox.Text ?? string.Empty).Trim();
+            if (folder.Length == 0)
+            {
+                MessageBox.Show("Informe o caminho da pasta GData.afs.");
+                return;
+            }
+
+            if (!Directory.Exists(folder))
+            {
+                MessageBox.Show("Pasta não encontrada: " + folder);
+                return;
+            }
+
+            _rootFolder = folder;
+
+            try { ClearReadOnlyRecursively(_rootFolder); } catch { }
+
+            try
+            {
+                LoadMapJsonIfPresent();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString());
+                StatusText.Text = "Erro ao carregar JSON.";
+                return;
+            }
+
+            var files = _items.Select(i => i.File)
+                .Where(f => !string.IsNullOrEmpty(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            _filteredFiles = files;
+            FilesListBox.ItemsSource = files;
+            VagpListView.ItemsSource = null;
+            SelectedFileText.Text = "";
+
+            StatusText.Text = "Mapa carregado.";
+            CountsText.Text = "Arquivos: " + files.Count + " | VAGp: " + _items.Count;
+            HintText.Text = "Selecione um arquivo à esquerda para ver os VAGp do JSON.";
+
+            SaveButton.IsEnabled = File.Exists(_mapJsonPath);
+        }
+
+        private void SaveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_lastJson == null)
+                return;
+
+            var dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.Filter = "JSON (*.json)|*.json|All files (*.*)|*.*";
+            dlg.FileName = "gdata_vagp_map.json";
+            dlg.InitialDirectory = AppDomain.CurrentDomain.BaseDirectory;
+
+            bool? ok = dlg.ShowDialog(this);
+            if (ok == true)
+            {
+                File.WriteAllText(dlg.FileName, _lastJson, Encoding.UTF8);
+                StatusText.Text = "JSON salvo em: " + dlg.FileName;
+            }
+        }
+
+        private void FileFilterTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_items == null)
+                return;
+
+            string filter = (FileFilterTextBox.Text ?? string.Empty).Trim();
+            var all = _items.Select(i => i.File)
+                .Where(f => !string.IsNullOrEmpty(f))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+
+            if (filter.Length != 0)
+                all = all.Where(f => f.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0);
+
+            _filteredFiles = all.OrderBy(s => s, StringComparer.OrdinalIgnoreCase).ToList();
+            FilesListBox.ItemsSource = _filteredFiles;
+
+            CountsText.Text = "Arquivos: " + _filteredFiles.Count + " | VAGp: " + _items.Count;
+        }
+
+        private void FilesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            string file = FilesListBox.SelectedItem as string;
+            if (string.IsNullOrEmpty(file) || _items == null)
+            {
+                VagpListView.ItemsSource = null;
+                SelectedFileText.Text = "";
+                return;
+            }
+
+            SelectedFileText.Text = "(" + file + ")";
+
+            var rows = _items
+                .Where(i => string.Equals(i.File, file, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(i => i.Offset)
+                .Select(i => new VagpRow
+                {
+                    File = i.File,
+                    Name = i.Name,
+                    Offset = i.Offset,
+                    Length = i.Length,
+                    SampleRate = i.SampleRate
+                })
+                .ToList();
+
+            VagpListView.ItemsSource = rows;
+            HintText.Text = rows.Count > 0 ? ("VAGp no arquivo: " + rows.Count) : "Nenhum VAGp para esse arquivo.";
+        }
+
+        private void ExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            var row = (sender as Button)?.Tag as VagpRow;
+            if (row == null) return;
+
+            if (string.IsNullOrEmpty(_rootFolder))
+            {
+                MessageBox.Show("Informe a pasta GData.afs e clique em Carregar.");
+                return;
+            }
+
+            string fullPath = Path.Combine(_rootFolder, row.File);
+            if (!File.Exists(fullPath))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + fullPath);
+                return;
+            }
+
+            var dlg = new Microsoft.Win32.SaveFileDialog();
+            dlg.Filter = "BIN (*.bin)|*.bin|All files (*.*)|*.*";
+            dlg.FileName = row.Name + "_" + (row.SampleRate.HasValue ? row.SampleRate.Value.ToString() : "nosr") + "_offset" + row.Offset + ".bin";
+            dlg.InitialDirectory = _rootFolder;
+
+            bool? ok = dlg.ShowDialog(this);
+            if (ok != true) return;
+
+            using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                fs.Position = row.Offset;
+                CopyExactly(fs, dlg.FileName, row.Length);
+            }
+
+            StatusText.Text = "Exportado: " + row.Name;
+        }
+
+        private void BulkExportButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_rootFolder))
+            {
+                MessageBox.Show("Informe a pasta GData.afs e clique em Carregar.");
+                return;
+            }
+
+            string file = FilesListBox.SelectedItem as string;
+            if (string.IsNullOrEmpty(file))
+            {
+                MessageBox.Show("Selecione um arquivo na lista à esquerda.");
+                return;
+            }
+
+            string targetPac = Path.Combine(_rootFolder, file);
+            if (!File.Exists(targetPac))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + targetPac);
+                return;
+            }
+
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string mfaudioPath = Path.Combine(exeDir, "mfaudio.exe");
+            if (!File.Exists(mfaudioPath))
+            {
+                MessageBox.Show("mfaudio.exe não encontrado na pasta do programa: " + mfaudioPath);
+                return;
+            }
+
+            string outDir = PickFolder("Selecione a pasta para exportar os WAVs");
+            if (outDir == null)
+                return;
+
+            var entries = _items
+                .Where(i => string.Equals(i.File, file, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(i => i.Offset)
+                .ToList();
+
+            int done = 0;
+            foreach (var it in entries)
+            {
+                if (!it.SampleRate.HasValue)
+                    continue;
+
+                string tempVag = Path.Combine(Path.GetTempPath(), "vagp_" + Guid.NewGuid().ToString("N") + ".vag");
+                string tempWav = Path.Combine(Path.GetTempPath(), "vagp_" + Guid.NewGuid().ToString("N") + ".wav");
+
+                try
+                {
+                    using (var fs = new FileStream(targetPac, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        fs.Position = it.Offset;
+                        CopyExactly(fs, tempVag, it.Length);
+                    }
+
+                    TryPatchVagSampleRateBigEndian(tempVag, it.SampleRate.Value);
+                    RunMfaudioToWav(mfaudioPath, it.SampleRate.Value, tempVag, tempWav);
+
+                    string outPath = Path.Combine(outDir, it.Name + ".wav");
+                    File.Copy(tempWav, outPath, true);
+                    done++;
+                }
+                finally
+                {
+                    try { if (File.Exists(tempVag)) File.Delete(tempVag); } catch { }
+                    try { if (File.Exists(tempWav)) File.Delete(tempWav); } catch { }
+                }
+            }
+
+            StatusText.Text = "Exportados: " + done + " WAV(s)";
+        }
+
+        private void BulkReplaceButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_rootFolder))
+            {
+                MessageBox.Show("Informe a pasta GData.afs e clique em Carregar.");
+                return;
+            }
+
+            string file = FilesListBox.SelectedItem as string;
+            if (string.IsNullOrEmpty(file))
+            {
+                MessageBox.Show("Selecione um arquivo na lista à esquerda.");
+                return;
+            }
+
+            string targetPac = Path.Combine(_rootFolder, file);
+            if (!File.Exists(targetPac))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + targetPac);
+                return;
+            }
+
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string mfaudioPath = Path.Combine(exeDir, "mfaudio.exe");
+            if (!File.Exists(mfaudioPath))
+            {
+                MessageBox.Show("mfaudio.exe não encontrado na pasta do programa: " + mfaudioPath);
+                return;
+            }
+
+            string wavDir = PickFolder("Selecione a pasta contendo WAVs (VAGp1.wav, VAGp2.wav, ...) ");
+            if (wavDir == null)
+                return;
+
+            try { MakeWritable(targetPac); } catch { }
+
+            // Backup once per file
+            string backupPath = targetPac + ".bak";
+            if (!File.Exists(backupPath))
+            {
+                File.Copy(targetPac, backupPath, false);
+                try { MakeWritable(backupPath); } catch { }
+            }
+
+            var entries = _items
+                .Where(i => string.Equals(i.File, file, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(i => i.Offset)
+                .ToList();
+
+            int patched = 0;
+            foreach (var it in entries)
+            {
+                string wavPath = Path.Combine(wavDir, it.Name + ".wav");
+                if (!File.Exists(wavPath))
+                    continue;
+                if (!it.SampleRate.HasValue)
+                    continue;
+
+                string tempRaw = Path.Combine(Path.GetTempPath(), "mfaudio_" + Guid.NewGuid().ToString("N") + ".raw");
+                try
+                {
+                    RunMfaudio(mfaudioPath, it.SampleRate.Value, wavPath, tempRaw);
+                    byte[] replacement = File.ReadAllBytes(tempRaw);
+                    int toWrite = replacement.Length > it.Length ? (int)it.Length : replacement.Length;
+
+                    using (var fs = new FileStream(targetPac, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite))
+                    {
+                        fs.Position = it.Offset;
+                        fs.Write(replacement, 0, toWrite);
+                    }
+
+                    patched++;
+                }
+                finally
+                {
+                    try { if (File.Exists(tempRaw)) File.Delete(tempRaw); } catch { }
+                }
+            }
+
+            StatusText.Text = "Substituídos: " + patched + " VAGp";
+        }
+
+        private string PickFolder(string title)
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog();
+            dlg.Title = title;
+            dlg.CheckFileExists = false;
+            dlg.CheckPathExists = true;
+            dlg.ValidateNames = false;
+            dlg.FileName = "Selecionar pasta";
+
+            // Melhor default: começa na pasta já digitada quando possível.
+            string initialDir = null;
+            try
+            {
+                initialDir = (FolderTextBox != null) ? (FolderTextBox.Text ?? string.Empty).Trim() : null;
+                if (!string.IsNullOrEmpty(initialDir) && Directory.Exists(initialDir))
+                    dlg.InitialDirectory = initialDir;
+                else
+                    dlg.InitialDirectory = Environment.CurrentDirectory;
+            }
+            catch
+            {
+                dlg.InitialDirectory = Environment.CurrentDirectory;
+            }
+
+            bool? ok = dlg.ShowDialog(this);
+            if (ok != true)
+                return null;
+
+            string path = Path.GetDirectoryName(dlg.FileName);
+            if (string.IsNullOrEmpty(path) || !Directory.Exists(path))
+                return null;
+
+            return path;
+        }
+
+        private void ReplaceButton_Click(object sender, RoutedEventArgs e)
+        {
+            var row = (sender as Button)?.Tag as VagpRow;
+            if (row == null) return;
+
+            if (string.IsNullOrEmpty(_rootFolder))
+            {
+                MessageBox.Show("Informe a pasta GData.afs e clique em Carregar.");
+                return;
+            }
+
+            if (!row.SampleRate.HasValue)
+            {
+                MessageBox.Show("SampleRate não encontrado no JSON para este VAGp.");
+                return;
+            }
+
+            string targetPath = Path.Combine(_rootFolder, row.File);
+            if (!File.Exists(targetPath))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + targetPath);
+                return;
+            }
+
+            try { MakeWritable(targetPath); } catch { }
+
+            var wavDlg = new Microsoft.Win32.OpenFileDialog();
+            wavDlg.Filter = "WAV (*.wav)|*.wav|All files (*.*)|*.*";
+
+            bool? ok = wavDlg.ShowDialog(this);
+            if (ok != true) return;
+
+            string wavPath = wavDlg.FileName;
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string mfaudioPath = Path.Combine(exeDir, "mfaudio.exe");
+
+            if (!File.Exists(mfaudioPath))
+            {
+                MessageBox.Show("mfaudio.exe não encontrado na pasta do programa: " + mfaudioPath);
+                return;
+            }
+
+            string tempRaw = Path.Combine(Path.GetTempPath(), "mfaudio_" + Guid.NewGuid().ToString("N") + ".raw");
+
+            try
+            {
+                RunMfaudio(mfaudioPath, row.SampleRate.Value, wavPath, tempRaw);
+                byte[] replacement = File.ReadAllBytes(tempRaw);
+
+                int toWrite = replacement.Length > row.Length ? (int)row.Length : replacement.Length;
+
+                string backupPath = targetPath + ".bak";
+                if (!File.Exists(backupPath))
+                {
+                    File.Copy(targetPath, backupPath, false);
+                    try { MakeWritable(backupPath); } catch { }
+                }
+
+                using (var fs = new FileStream(targetPath, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite))
+                {
+                    fs.Position = row.Offset;
+                    fs.Write(replacement, 0, toWrite);
+                }
+
+                StatusText.Text = "Substituído (truncado): " + row.Name;
+            }
+            finally
+            {
+                try { if (File.Exists(tempRaw)) File.Delete(tempRaw); } catch { }
+            }
+        }
+
+        private void BrowseButton_Click(object sender, RoutedEventArgs e)
+        {
+            string selected = PickFolder("Selecione a pasta GData.afs");
+            if (string.IsNullOrEmpty(selected))
+                return;
+
+            // Se o usuário escolheu a pasta "pai" (que contém a subpasta GData.afs), ajusta automaticamente.
+            string direct = selected;
+            if (!Directory.Exists(direct))
+                return;
+
+            if (!string.Equals(Path.GetFileName(direct), "GData.afs", StringComparison.OrdinalIgnoreCase))
+            {
+                string child = Path.Combine(direct, "GData.afs");
+                if (Directory.Exists(child))
+                    direct = child;
+            }
+
+            FolderTextBox.Text = direct;
+        }
+
+        private void PlaySoundButton_Click(object sender, RoutedEventArgs e)
+        {
+            var row = (sender as Button)?.Tag as VagpRow;
+            if (row == null) return;
+
+            if (string.IsNullOrEmpty(_rootFolder))
+            {
+                MessageBox.Show("Informe a pasta GData.afs e clique em Carregar.");
+                return;
+            }
+
+            if (!row.SampleRate.HasValue)
+            {
+                MessageBox.Show("SampleRate não encontrado no JSON para este VAGp.");
+                return;
+            }
+
+            string fullPath = Path.Combine(_rootFolder, row.File);
+            if (!File.Exists(fullPath))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + fullPath);
+                return;
+            }
+
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            string mfaudioPath = Path.Combine(exeDir, "mfaudio.exe");
+            if (!File.Exists(mfaudioPath))
+            {
+                MessageBox.Show("mfaudio.exe não encontrado na pasta do programa: " + mfaudioPath);
+                return;
+            }
+
+            string tempVag = Path.Combine(Path.GetTempPath(), "vagp_" + Guid.NewGuid().ToString("N") + ".vag");
+            string tempWav = Path.Combine(Path.GetTempPath(), "vagp_" + Guid.NewGuid().ToString("N") + ".wav");
+
+            try
+            {
+                using (var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                {
+                    fs.Position = row.Offset;
+                    CopyExactly(fs, tempVag, row.Length);
+                }
+
+                // Patch VAG header sample rate before passing to mfaudio.
+                // Example: ... 0E 30 00 00 56 22 00 -> ... 0E 30 00 00 3E 80 00
+                // This writes big-endian UInt16 sampleRate at offset 0x12 from the start of the VAGp.
+                TryPatchVagSampleRateBigEndian(tempVag, row.SampleRate.Value);
+
+                // Convert to wav (still passing /OF as requested)
+                RunMfaudioToWav(mfaudioPath, row.SampleRate.Value, tempVag, tempWav);
+
+                if (!File.Exists(tempWav))
+                    throw new FileNotFoundException("WAV temporário não foi gerado.", tempWav);
+
+                try { if (!string.IsNullOrEmpty(_tempPlayWav) && File.Exists(_tempPlayWav)) File.Delete(_tempPlayWav); } catch { }
+                _tempPlayWav = tempWav;
+
+                _playerTimer.Stop();
+                _player.Stop();
+                _player.Close();
+
+                _player.Open(new Uri(tempWav, UriKind.Absolute));
+
+                StatusText.Text = "Pronto para tocar: " + row.Name;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString());
+                try { if (!string.IsNullOrEmpty(tempWav) && File.Exists(tempWav)) File.Delete(tempWav); } catch { }
+            }
+            finally
+            {
+                try { if (File.Exists(tempVag)) File.Delete(tempVag); } catch { }
+            }
+        }
+
+        private void EnhanceQualityButton_Click(object sender, RoutedEventArgs e)
+        {
+            var row = (sender as Button)?.Tag as VagpRow;
+            if (row == null) return;
+
+            if (string.IsNullOrEmpty(_rootFolder))
+            {
+                MessageBox.Show("Informe a pasta GData.afs e clique em Carregar.");
+                return;
+            }
+
+            string fullPath = Path.Combine(_rootFolder, row.File);
+            if (!File.Exists(fullPath))
+            {
+                MessageBox.Show("Arquivo não encontrado: " + fullPath);
+                return;
+            }
+
+            // Extract VAGp number from name (e.g., "VAGp3" -> 3)
+            int vagpNumber = ExtractVagpNumber(row.Name);
+            if (vagpNumber < 0)
+            {
+                MessageBox.Show("Não foi possível extrair o número do VAGp do nome: " + row.Name);
+                return;
+            }
+
+            // Prompt user for quality multiplier
+            string input = PromptForInput("Digite o multiplicador de qualidade (ex: 4 para 4x):", "Aumentar Qualidade", "4");
+
+            if (string.IsNullOrEmpty(input) || input.Trim().Length == 0)
+                return;
+
+            int multiplier;
+            if (!int.TryParse(input, out multiplier) || multiplier <= 0)
+            {
+                MessageBox.Show("Por favor, digite um número válido maior que zero.");
+                return;
+            }
+
+            try
+            {
+                MakeWritable(fullPath);
+
+                // Create backup
+                string backupPath = fullPath + ".bak";
+                if (!File.Exists(backupPath))
+                {
+                    File.Copy(fullPath, backupPath, false);
+                    try { MakeWritable(backupPath); } catch { }
+                }
+
+                // Find VAGI signature and update the table
+                bool success = EnhanceVagpQualityInPac(fullPath, vagpNumber, multiplier);
+
+                if (success)
+                {
+                    StatusText.Text = string.Format("Qualidade aumentada {0}x para: {1}", multiplier, row.Name);
+                    MessageBox.Show(string.Format("Qualidade aumentada com sucesso!\n\nVAGp: {0}\nMultiplicador: {1}x\n\nNOTA: A tabela VAGI foi atualizada.\nOs offsets de todos os VAGp seguintes foram ajustados.\nAgora você precisa substituir o VAGp com um arquivo de maior qualidade usando o botão 'Substituir...'.", row.Name, multiplier));
+                }
+                else
+                {
+                    StatusText.Text = "Falha ao aumentar qualidade.";
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Erro ao aumentar qualidade:\n\n" + ex.ToString());
+                StatusText.Text = "Erro ao aumentar qualidade.";
+            }
+        }
+
+        private int ExtractVagpNumber(string vagpName)
+        {
+            // Extract number from names like "VAGp1", "VAGp2", "VAGp3", etc.
+            if (string.IsNullOrEmpty(vagpName))
+                return -1;
+
+            string upperName = vagpName.ToUpper();
+            if (!upperName.StartsWith("VAGP"))
+                return -1;
+
+            string numberPart = vagpName.Substring(4);
+            int number;
+            if (int.TryParse(numberPart, out number) && number >= 1)
+                return number;
+
+            return -1;
+        }
+
+        private string PromptForInput(string message, string title, string defaultValue)
+        {
+            // Create a simple input dialog
+            Window inputDialog = new Window
+            {
+                Title = title,
+                Width = 400,
+                Height = 180,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ResizeMode = ResizeMode.NoResize
+            };
+
+            Grid grid = new Grid();
+            grid.Margin = new Thickness(15);
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(15) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(15) });
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+
+            TextBlock messageBlock = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap };
+            Grid.SetRow(messageBlock, 0);
+            grid.Children.Add(messageBlock);
+
+            TextBox inputBox = new TextBox { Text = defaultValue, Height = 30 };
+            Grid.SetRow(inputBox, 2);
+            grid.Children.Add(inputBox);
+
+            StackPanel buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+            Grid.SetRow(buttonPanel, 4);
+
+            Button okButton = new Button { Content = "OK", Width = 80, Height = 30, Margin = new Thickness(0, 0, 10, 0), IsDefault = true };
+            Button cancelButton = new Button { Content = "Cancelar", Width = 80, Height = 30, IsCancel = true };
+
+            string result = null;
+            okButton.Click += (s, e) => { result = inputBox.Text; inputDialog.DialogResult = true; inputDialog.Close(); };
+            cancelButton.Click += (s, e) => { inputDialog.DialogResult = false; inputDialog.Close(); };
+
+            buttonPanel.Children.Add(okButton);
+            buttonPanel.Children.Add(cancelButton);
+            grid.Children.Add(buttonPanel);
+
+            inputDialog.Content = grid;
+            inputDialog.ShowDialog();
+
+            return result;
+        }
+
+        private bool EnhanceVagpQualityInPac(string pacPath, int vagpNumber, int multiplier)
+        {
+            byte[] fileData = File.ReadAllBytes(pacPath);
+
+            // Find VAGI signature (56 61 67 69)
+            long vagiOffset = FindVagiSignature(fileData);
+            if (vagiOffset < 0)
+            {
+                MessageBox.Show("Assinatura VAGI não encontrada no arquivo PAC.");
+                return false;
+            }
+
+            // Parse VAGI entries
+            List<VagiEntry> vagiEntries = ParseVagiEntries(fileData, vagiOffset);
+
+            // VAGp numbers are 1-based, so VAGp3 is at index 2
+            int targetIndex = vagpNumber - 1;
+
+            if (targetIndex < 0 || targetIndex >= vagiEntries.Count)
+            {
+                MessageBox.Show(string.Format("VAGp{0} não encontrado na tabela VAGI.\nTotal de entradas: {1}", vagpNumber, vagiEntries.Count));
+                return false;
+            }
+
+            // Get original VAGp data
+            long originalOffset = vagiEntries[targetIndex].StartOffset;
+            long originalLength = vagiEntries[targetIndex].Length;
+            
+            // Extract original VAGp data
+            byte[] originalVagpData = new byte[originalLength];
+            Array.Copy(fileData, originalOffset, originalVagpData, 0, originalLength);
+
+            // Create expanded data by repeating the original data
+            long newLength = originalLength * multiplier;
+            byte[] expandedData = new byte[newLength];
+            
+            // Repeat the original data 'multiplier' times
+            for (int i = 0; i < multiplier; i++)
+            {
+                Array.Copy(originalVagpData, 0, expandedData, i * originalLength, originalLength);
+            }
+
+            long lengthDelta = newLength - originalLength;
+
+            // Create new file with expanded data
+            byte[] newFileData = ExpandFileData(fileData, originalOffset, originalLength, expandedData);
+
+            // Update the target entry in VAGI table
+            vagiEntries[targetIndex].Length = newLength;
+
+            // Update all subsequent entries' start offsets
+            for (int i = targetIndex + 1; i < vagiEntries.Count; i++)
+            {
+                vagiEntries[i].StartOffset += lengthDelta;
+            }
+
+            // Write back the modified VAGI table
+            WriteVagiEntries(newFileData, vagiOffset, vagiEntries);
+
+            // Save the modified file
+            File.WriteAllBytes(pacPath, newFileData);
+
+            // Update JSON with new offsets and lengths
+            UpdateJsonWithNewOffsets(pacPath, vagiEntries);
+
+            return true;
+        }
+
+        private byte[] ExpandFileData(byte[] originalData, long insertOffset, long originalLength, byte[] newData)
+        {
+            // Calculate new file size
+            long newFileSize = originalData.Length - originalLength + newData.Length;
+            byte[] result = new byte[newFileSize];
+
+            // Copy data before the insertion point
+            Array.Copy(originalData, 0, result, 0, insertOffset);
+
+            // Insert the new expanded data
+            Array.Copy(newData, 0, result, insertOffset, newData.Length);
+
+            // Copy data after the original data (shifted by the size difference)
+            long afterOriginalOffset = insertOffset + originalLength;
+            long afterNewOffset = insertOffset + newData.Length;
+            long remainingLength = originalData.Length - afterOriginalOffset;
+            
+            if (remainingLength > 0)
+            {
+                Array.Copy(originalData, afterOriginalOffset, result, afterNewOffset, remainingLength);
+            }
+
+            return result;
+        }
+
+        private void UpdateJsonWithNewOffsets(string pacPath, List<VagiEntry> vagiEntries)
+        {
+            try
+            {
+                if (_items == null || _items.Count == 0)
+                    return;
+
+                string pacFileName = Path.GetFileName(pacPath);
+
+                // Find all items for this PAC file
+                var itemsToUpdate = _items.Where(item => 
+                    string.Equals(item.File, pacFileName, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                if (itemsToUpdate.Count == 0)
+                    return;
+
+                // Update each item with new offsets and lengths from VAGI table
+                for (int i = 0; i < itemsToUpdate.Count && i < vagiEntries.Count; i++)
+                {
+                    itemsToUpdate[i].Offset = vagiEntries[i].StartOffset;
+                    itemsToUpdate[i].Length = vagiEntries[i].Length;
+                }
+
+                // Save updated JSON
+                string json = JsonVagpMap.Save(_items);
+                File.WriteAllText(_mapJsonPath, json, Encoding.UTF8);
+                _lastJson = json;
+
+                StatusText.Text = "JSON atualizado com novos offsets e lengths.";
+            }
+            catch (Exception ex)
+            {
+                // Don't fail the operation if JSON update fails, just log it
+                StatusText.Text = "Aviso: Falha ao atualizar JSON: " + ex.Message;
+            }
+        }
+
+        private void LoadMapJsonIfPresent()
+        {
+            if (!File.Exists(_mapJsonPath))
+            {
+                StatusText.Text = "Mapa JSON não encontrado: " + _mapJsonPath;
+                _items = new List<JsonVagpMap.VagpItem>();
+                _lastJson = null;
+                return;
+            }
+
+            _items = JsonVagpMap.Load(_mapJsonPath);
+            _lastJson = File.ReadAllText(_mapJsonPath, Encoding.UTF8);
+            StatusText.Text = "Mapa carregado: " + Path.GetFileName(_mapJsonPath);
+        }
+
+        private void UpdateUiForNoFileSelection()
+        {
+            FilesListBox.ItemsSource = null;
+            VagpListView.ItemsSource = null;
+            SelectedFileText.Text = "";
+            HintText.Text = "Informe a pasta GData.afs e clique em Carregar.";
+            CountsText.Text = "";
+            SaveButton.IsEnabled = File.Exists(_mapJsonPath);
+
+            PlayerPlayButton.IsEnabled = false;
+            PlayerStopButton.IsEnabled = false;
+            PlayerSlider.IsEnabled = false;
+            PlayerSlider.Value = 0;
+            PlayerTimeText.Text = "00:00 / 00:00";
+        }
+
+        private static void ClearReadOnlyRecursively(string rootFolder)
+        {
+            foreach (string file in Directory.GetFiles(rootFolder, "*", SearchOption.AllDirectories))
+            {
+                MakeWritable(file);
+            }
+        }
+
+        private static void MakeWritable(string filePath)
+        {
+            FileAttributes attrs = File.GetAttributes(filePath);
+            if ((attrs & FileAttributes.ReadOnly) != 0)
+            {
+                attrs = attrs & ~FileAttributes.ReadOnly;
+                File.SetAttributes(filePath, attrs);
+            }
+        }
+
+        private static void CopyExactly(FileStream input, string outputPath, long length)
+        {
+            const int bufferSize = 64 * 1024;
+            byte[] buffer = new byte[bufferSize];
+
+            using (var outFs = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                long remaining = length;
+                while (remaining > 0)
+                {
+                    int toRead = remaining > buffer.Length ? buffer.Length : (int)remaining;
+                    int read = input.Read(buffer, 0, toRead);
+                    if (read <= 0) throw new EndOfStreamException();
+                    outFs.Write(buffer, 0, read);
+                    remaining -= read;
+                }
+            }
+        }
+
+        private static void RunMfaudio(string mfaudioPath, int sampleRate, string wavPath, string rawOutPath)
+        {
+            string args = "/OTVAGC /OC1 /OF" + sampleRate + " \"" + wavPath + "\" \"" + rawOutPath + "\"";
+
+            var psi = new ProcessStartInfo();
+            psi.FileName = mfaudioPath;
+            psi.Arguments = args;
+            psi.WorkingDirectory = Path.GetDirectoryName(mfaudioPath);
+            psi.CreateNoWindow = true;
+            psi.UseShellExecute = false;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+
+            using (var p = Process.Start(psi))
+            {
+                string stdout = p.StandardOutput.ReadToEnd();
+                string stderr = p.StandardError.ReadToEnd();
+                p.WaitForExit();
+                if (p.ExitCode != 0)
+                    throw new InvalidOperationException("mfaudio.exe falhou (ExitCode=" + p.ExitCode + ").\n\nSTDOUT:\n" + stdout + "\n\nSTDERR:\n" + stderr);
+            }
+        }
+
+        private static void RunMfaudioToWav(string mfaudioPath, int sampleRate, string vagPath, string wavOutPath)
+        {
+            // mfaudio.exe /OTWAVU /OF{sampleRate} "in.vag" "out.wav"
+            string args = "/OTWAVU /OF" + sampleRate + " \"" + vagPath + "\" \"" + wavOutPath + "\"";
+
+            var psi = new ProcessStartInfo();
+            psi.FileName = mfaudioPath;
+            psi.Arguments = args;
+            psi.WorkingDirectory = Path.GetDirectoryName(mfaudioPath);
+            psi.CreateNoWindow = true;
+            psi.UseShellExecute = false;
+            psi.RedirectStandardOutput = true;
+            psi.RedirectStandardError = true;
+
+            using (var p = Process.Start(psi))
+            {
+                string stdout = p.StandardOutput.ReadToEnd();
+                string stderr = p.StandardError.ReadToEnd();
+                p.WaitForExit();
+
+                if (p.ExitCode != 0)
+                    throw new InvalidOperationException("mfaudio.exe falhou (ExitCode=" + p.ExitCode + ").\n\nSTDOUT:\n" + stdout + "\n\nSTDERR:\n" + stderr);
+            }
+        }
+    }
+}

@@ -3,15 +3,34 @@
   "WorkspaceRootPath": "C:\\Users\\Erik\\source\\repos\\WpfApp1\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{E9EBA887-FCE6-43F7-B577-A16213C0311E}|WpfApp1.csproj|C:\\Users\\Erik\\source\\repos\\WpfApp1\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{E9EBA887-FCE6-43F7-B577-A16213C0311E}|WpfApp1.csproj|solutionrelative:mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{E9EBA887-FCE6-43F7-B577-A16213C0311E}|WpfApp1.csproj|C:\\Users\\Erik\\source\\repos\\WpfApp1\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
       "RelativeMoniker": "D:0:0:{E9EBA887-FCE6-43F7-B577-A16213C0311E}|WpfApp1.csproj|solutionrelative:mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
     },
     {
+      "AbsoluteMoniker": "D:0:0:{E9EBA887-FCE6-43F7-B577-A16213C0311E}|WpfApp1.csproj|C:\\Users\\Erik\\source\\repos\\WpfApp1\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{E9EBA887-FCE6-43F7-B577-A16213C0311E}|WpfApp1.csproj|solutionrelative:mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{E9EBA887-FCE6-43F7-B577-A16213C0311E}|WpfApp1.csproj|c:\\users\\erik\\source\\repos\\wpfapp1\\jsonvagpmap.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{E9EBA887-FCE6-43F7-B577-A16213C0311E}|WpfApp1.csproj|solutionrelative:jsonvagpmap.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-48ae797b-34d7-46c1-8d70-44583125e531.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-8ea8fe9f-b432-4999-a197-17260d369439.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-be400d3f-28c8-440d-917a-2f677ebcb8fd.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-fc5787c3-b846-4f0f-9ef5-d62f0518fc6e.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Erik\\Documents\\GitHub\\DMC3AudioReplacer\\GDataScanner.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|C:\\Users\\Erik\\Documents\\GitHub\\DMC3AudioReplacer\\App.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -21,11 +40,50 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 2,
+          "SelectedChildIndex": 3,
           "Children": [
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 3,
+              "Title": "plan-48ae797b-34d7-46c1-8d70-44583125e531.md",
+              "DocumentMoniker": "C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-48ae797b-34d7-46c1-8d70-44583125e531.md",
+              "RelativeDocumentMoniker": "..\\..\\..\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-48ae797b-34d7-46c1-8d70-44583125e531.md",
+              "ToolTip": "C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-48ae797b-34d7-46c1-8d70-44583125e531.md [Somente Leitura]",
+              "RelativeToolTip": "..\\..\\..\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-48ae797b-34d7-46c1-8d70-44583125e531.md [Somente Leitura]",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-01-03T20:51:57.234Z",
+              "EditorCaption": " [Somente Leitura]"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "plan-be400d3f-28c8-440d-917a-2f677ebcb8fd.md",
+              "DocumentMoniker": "C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-be400d3f-28c8-440d-917a-2f677ebcb8fd.md",
+              "RelativeDocumentMoniker": "..\\..\\..\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-be400d3f-28c8-440d-917a-2f677ebcb8fd.md",
+              "ToolTip": "C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-be400d3f-28c8-440d-917a-2f677ebcb8fd.md",
+              "RelativeToolTip": "..\\..\\..\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-be400d3f-28c8-440d-917a-2f677ebcb8fd.md",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-01-03T17:43:44.896Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "JsonVagpMap.cs",
+              "DocumentMoniker": "C:\\Users\\Erik\\source\\repos\\WpfApp1\\JsonVagpMap.cs",
+              "RelativeDocumentMoniker": "JsonVagpMap.cs",
+              "ToolTip": "C:\\Users\\Erik\\source\\repos\\WpfApp1\\JsonVagpMap.cs",
+              "RelativeToolTip": "JsonVagpMap.cs",
+              "ViewState": "AgIAAJUAAAAAAAAAAAAiwJoAAAAVAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-03T17:50:28.597Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
               "Title": "MainWindow.xaml",
               "DocumentMoniker": "C:\\Users\\Erik\\source\\repos\\WpfApp1\\MainWindow.xaml",
               "RelativeDocumentMoniker": "MainWindow.xaml",
@@ -37,7 +95,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 4,
               "Title": "plan-8ea8fe9f-b432-4999-a197-17260d369439.md",
               "DocumentMoniker": "C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-8ea8fe9f-b432-4999-a197-17260d369439.md",
               "RelativeDocumentMoniker": "..\\..\\..\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-8ea8fe9f-b432-4999-a197-17260d369439.md",
@@ -50,16 +108,53 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 0,
+              "DocumentIndex": 1,
               "Title": "MainWindow.xaml.cs",
               "DocumentMoniker": "C:\\Users\\Erik\\source\\repos\\WpfApp1\\MainWindow.xaml.cs",
               "RelativeDocumentMoniker": "MainWindow.xaml.cs",
               "ToolTip": "C:\\Users\\Erik\\source\\repos\\WpfApp1\\MainWindow.xaml.cs",
               "RelativeToolTip": "MainWindow.xaml.cs",
-              "ViewState": "AgIAANICAAAAAAAAAAAiwNoCAAANAAAAAAAAAA==",
+              "ViewState": "AgIAAKsCAAAAAAAAAAAYwLgCAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-12-19T02:29:07.357Z",
               "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "plan-fc5787c3-b846-4f0f-9ef5-d62f0518fc6e.md",
+              "DocumentMoniker": "C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-fc5787c3-b846-4f0f-9ef5-d62f0518fc6e.md",
+              "RelativeDocumentMoniker": "..\\..\\..\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-fc5787c3-b846-4f0f-9ef5-d62f0518fc6e.md",
+              "ToolTip": "C:\\Users\\Erik\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-fc5787c3-b846-4f0f-9ef5-d62f0518fc6e.md",
+              "RelativeToolTip": "..\\..\\..\\AppData\\Local\\Temp\\VisualStudio\\copilot-vs\\plan-fc5787c3-b846-4f0f-9ef5-d62f0518fc6e.md",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-01-03T19:37:00.697Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "GDataScanner.cs",
+              "DocumentMoniker": "C:\\Users\\Erik\\Documents\\GitHub\\DMC3AudioReplacer\\GDataScanner.cs",
+              "RelativeDocumentMoniker": "..\\..\\..\\Documents\\GitHub\\DMC3AudioReplacer\\GDataScanner.cs",
+              "ToolTip": "C:\\Users\\Erik\\Documents\\GitHub\\DMC3AudioReplacer\\GDataScanner.cs",
+              "RelativeToolTip": "..\\..\\..\\Documents\\GitHub\\DMC3AudioReplacer\\GDataScanner.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAABAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-03T17:50:45.825Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 8,
+              "Title": "App.xaml.cs",
+              "DocumentMoniker": "C:\\Users\\Erik\\Documents\\GitHub\\DMC3AudioReplacer\\App.xaml.cs",
+              "RelativeDocumentMoniker": "..\\..\\..\\Documents\\GitHub\\DMC3AudioReplacer\\App.xaml.cs",
+              "ToolTip": "C:\\Users\\Erik\\Documents\\GitHub\\DMC3AudioReplacer\\App.xaml.cs",
+              "RelativeToolTip": "..\\..\\..\\Documents\\GitHub\\DMC3AudioReplacer\\App.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-01-03T17:50:48.333Z"
             }
           ]
         }
